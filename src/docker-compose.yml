@@ -1,0 +1,87 @@
+version: "3.7"
+
+# inicijalizacija potrebnih varijabli koje se proslijedjuju servisima:
+x-service-volumes: &service-volumes
+  - ./:/app/:rw,cached
+
+x-database-variables: &database-variables
+  POSTGRES_DB: postgres
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+
+x-app-variables: &app-variables
+  <<: *database-variables
+  POSTGRES_HOST: postgres
+  CELERY_BACKEND: rpc://
+  INVENIO_CELERY_BROKER_URL: amqp://postgres:postgres@rabbit:5672
+
+x-rabbit-variables: &rabbit-variables
+  <<: *app-variables
+  RABBITMQ_DEFAULT_USER: postgres
+  RABBITMQ_DEFAULT_PASS: postgres
+
+services:
+  # website servis je glavni REST api servis za interakciju sa korisnikom:
+  website:
+    image: financialnews:latest
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes: *service-volumes
+    environment: *app-variables
+    depends_on:
+      - db_migrate
+      - scraping_service
+    ports:
+      - "8000:8000"
+
+  # servis db_migrate ima ulogu samo pri prvom startanju docker-compose up, kada migrira postojece migracije:
+  db_migrate:
+    image: financialnews:latest
+    command: python manage.py migrate
+    volumes: *service-volumes
+    environment: *app-variables
+    depends_on:
+      - postgres
+
+  # postgres servis sluzi za rad nove baze koja se nalazi na lokaciji /var/lib/postgresql/data (prema dokumentaciji):
+  postgres:
+    image: postgres
+    ports:
+      - "5432:5432"
+    environment: *database-variables
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  # servis celery_worker ce da izvrsava periodicni task na zahtjev servisa celery_scheduler:
+  celery_worker:
+    image: financialnews:latest
+    command: celery -A financialNews worker -l INFO
+    volumes: *service-volumes
+    environment: *app-variables
+    depends_on:
+      - website
+      - scraping_service
+
+  # servis celery_scheduler ce da salje periodicni task servisu celery_worker:
+  celery_scheduler:
+    image: financialnews:latest
+    command: celery -A financialNews beat -l INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    volumes: *service-volumes
+    environment: *app-variables
+    depends_on:
+      - website
+      - scraping_service
+
+  # scraping servis postavlja uslove (brokera) za rad celery servisa:
+  scraping_service:
+    hostname: rabbit
+    image: rabbitmq
+    volumes: *service-volumes
+    environment: *rabbit-variables
+    ports:
+      - "5672:5672"
+    depends_on:
+      - postgres
+
+# volume baze koji ce se kreirati na dockeru:
+volumes:
+  db-data:
