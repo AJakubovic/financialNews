@@ -10,9 +10,7 @@
   * type ```make compose-manage-py cmd="makemigrations"``` for creating migrations
   * type ```make compose-start``` for starting all services
 
- The initial page Api Root (http://localhost:8000/) contains paths for three REST apis: feeds, feedNews and symbols. All objects are empty and cannot be created without a successful logIn, what is not possible unless there is created SuperUser. To create a SuperUser, please type in cmd the following command:
- ```
- make compose-manage-py cmd=“createsuperuser“
- ```, 
+ The initial page Api Root (http://localhost:8000/) contains paths for three REST apis: feeds, feedNews and symbols. All objects are empty and cannot be created without a successful login, what is not possible unless there is created SuperUser. To create a SuperUser, please type in cmd the following command:
+ ```make compose-manage-py cmd=“createsuperuser“```, 
 and fill-in the data for username, email and password.
 Then it is possible to enter the initial data in objects Symbols, Feeds and Periodic task (through Admin module). Financial news will be then collected and listed in FeedNews api.
